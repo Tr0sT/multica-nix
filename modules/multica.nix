@@ -14,6 +14,7 @@ let
     optional
     optionalAttrs
     optionalString
+    unique
     types
     ;
   cfg = config.services.multica;
@@ -33,6 +34,20 @@ let
       "postgres://${cfg.database.user}@/${cfg.database.name}?host=/run/postgresql&sslmode=disable"
     else
       cfg.database.url;
+  dbSetupScript = pkgs.writeShellScript "multica-db-setup" ''
+    set -euo pipefail
+
+    ${pkgs.postgresql_17}/bin/psql -d postgres -v ON_ERROR_STOP=1 <<'SQL'
+    ALTER DATABASE "${cfg.database.name}" OWNER TO "${cfg.database.user}";
+    SQL
+
+    ${pkgs.postgresql_17}/bin/psql -d "${cfg.database.name}" -v ON_ERROR_STOP=1 <<'SQL'
+    CREATE EXTENSION IF NOT EXISTS vector;
+    ALTER SCHEMA public OWNER TO "${cfg.database.user}";
+    GRANT USAGE, CREATE ON SCHEMA public TO "${cfg.database.user}";
+    GRANT ALL PRIVILEGES ON DATABASE "${cfg.database.name}" TO "${cfg.database.user}";
+    SQL
+  '';
 in
 {
   options.services.multica = {
@@ -202,7 +217,10 @@ in
       enable = true;
       package = pkgs.postgresql_17;
       extensions = ps: [ ps.pgvector ];
-      ensureDatabases = [ cfg.database.name ];
+      ensureDatabases = unique [
+        cfg.database.name
+        cfg.database.user
+      ];
       ensureUsers = [
         {
           name = cfg.database.user;
@@ -235,7 +253,7 @@ in
       serviceConfig = {
         Type = "oneshot";
         User = "postgres";
-        ExecStart = "${pkgs.postgresql_17}/bin/psql -d ${cfg.database.name} -v ON_ERROR_STOP=1 -c 'CREATE EXTENSION IF NOT EXISTS vector;'";
+        ExecStart = dbSetupScript;
       };
     };
 
