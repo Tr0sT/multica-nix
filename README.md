@@ -2,7 +2,7 @@
 
 Experimental external native Nix/NixOS packaging for [Multica](https://github.com/multica-ai/multica). It builds the Go backend, Next.js web frontend, a NixOS module, and a VM test.
 
-Packaged Multica version: `0.3.34` (`v0.3.34`).
+Packaged Multica version: `0.3.39` (`v0.3.39`).
 
 ## Flake input
 
