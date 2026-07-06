@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-db="multica"; db_user="multica"; state_dir="/var/lib/multica"; backup_dir=""; backend_port="8080"; frontend_port="3000"; svc_user="multica"; svc_group="multica"
+db="multica"; db_user="multica"; state_dir="/var/lib/multica"; backup_dir=""; backend_port="8080"; frontend_port="3000"; svc_user="multica"; svc_group="multica"; replace_existing_db=false
+
+usage() {
+  echo "Usage: $0 --replace-existing-db --backup-dir DIR [--db multica] [--db-user multica] [--state-dir /var/lib/multica]"
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --backup-dir) backup_dir="$2"; shift 2 ;;
@@ -12,12 +17,27 @@ while [[ $# -gt 0 ]]; do
     --frontend-port) frontend_port="$2"; shift 2 ;;
     --user) svc_user="$2"; shift 2 ;;
     --group) svc_group="$2"; shift 2 ;;
-    -h|--help) echo "Usage: $0 --backup-dir DIR [--db multica] [--db-user multica] [--state-dir /var/lib/multica]"; exit 0 ;;
+    --replace-existing-db) replace_existing_db=true; shift ;;
+    -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; exit 2 ;;
   esac
 done
+
 [[ -n "$backup_dir" ]] || { echo "missing --backup-dir" >&2; exit 2; }
 [[ -f "$backup_dir/db.dump" && -f "$backup_dir/uploads.tar.gz" ]] || { echo "backup must contain db.dump and uploads.tar.gz" >&2; exit 1; }
+[[ "$replace_existing_db" == true ]] || { echo "refusing to drop/recreate database '$db' without --replace-existing-db" >&2; exit 2; }
+
+case "$db" in
+  postgres|template0|template1)
+    echo "refusing to replace protected PostgreSQL database '$db'" >&2
+    exit 2
+    ;;
+esac
+
+if tar -tzf "$backup_dir/uploads.tar.gz" | grep -Eq '(^/|(^|/)\.\.(/|$))'; then
+  echo "uploads archive contains unsafe absolute or parent-directory paths" >&2
+  exit 1
+fi
 
 systemctl stop multica-web.service multica-backend.service multica-migrate.service || true
 sudo -u postgres dropdb --if-exists "$db"
