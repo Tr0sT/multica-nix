@@ -1,6 +1,6 @@
 # multica-nix
 
-Experimental external native Nix/NixOS packaging for [Multica](https://github.com/multica-ai/multica). It builds the Go backend, Next.js web frontend, a NixOS module, migration helpers, and a VM test without Docker/OCI containers at runtime.
+Experimental external native Nix/NixOS packaging for [Multica](https://github.com/multica-ai/multica). It builds the Go backend, Next.js web frontend, a NixOS module, and a VM test.
 
 Packaged Multica version: `0.3.34` (`v0.3.34`).
 
@@ -49,23 +49,6 @@ For a public or cross-machine deployment, keep the raw backend private and put M
 ```
 
 `services.multica.openFirewall = true` opens the frontend port only. The backend port is controlled separately by `services.multica.backend.openFirewall`; avoid enabling it unless another firewall layer keeps the raw API private.
-
-## Test next to Docker
-
-Use `examples/test-next-to-docker.nix` to run native Multica on frontend port `13000` and backend port `18080` while the Docker Compose instance keeps `3000/8080`.
-
-## Migration
-
-See [`docs/migration-from-docker.md`](docs/migration-from-docker.md). Short form:
-
-```bash
-cd ~/.multica/server
-/path/to/multica-nix/scripts/export-from-docker.sh
-/path/to/multica-nix/scripts/sanitize-docker-env.sh --output /var/lib/multica/multica.env .env
-/path/to/multica-nix/scripts/import-to-native.sh --replace-existing-db --db multica_nix_test --backup-dir ./backups/<timestamp> --backend-port 18080 --frontend-port 13000
-```
-
-Do not delete Docker volumes during migration.
 
 ## Updating Multica
 
