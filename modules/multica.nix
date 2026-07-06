@@ -8,13 +8,12 @@
 
 let
   inherit (lib)
+    concatStringsSep
     mkEnableOption
     mkIf
     mkOption
     optional
     optionalAttrs
-    optionalString
-    unique
     types
     ;
   cfg = config.services.multica;
@@ -29,11 +28,15 @@ let
       }
     else
       rawWebPackage;
+  simplePgIdentifier = value: builtins.match "[A-Za-z_][A-Za-z0-9_-]*" value != null;
   dbUrl =
     if cfg.database.createLocally then
       "postgres://${cfg.database.user}@/${cfg.database.name}?host=/run/postgresql&sslmode=disable"
     else
       cfg.database.url;
+  dbEnvironment = optionalAttrs (dbUrl != null) {
+    DATABASE_URL = dbUrl;
+  };
   dbSetupScript = pkgs.writeShellScript "multica-db-setup" ''
     set -euo pipefail
 
@@ -72,7 +75,7 @@ in
     environmentFile = mkOption {
       type = types.nullOr types.str;
       default = null;
-      description = "Runtime path to env file with secrets only. Must not be a Nix store path.";
+      description = "Absolute runtime path to an env file with secrets and integration credentials. Must not be a Nix store path.";
     };
 
     package = {
@@ -97,17 +100,17 @@ in
       name = mkOption {
         type = types.str;
         default = "multica";
-        description = "PostgreSQL database name.";
+        description = "PostgreSQL database name for the managed local database.";
       };
       user = mkOption {
         type = types.str;
         default = "multica";
-        description = "PostgreSQL database user.";
+        description = "PostgreSQL database user for the managed local database.";
       };
       url = mkOption {
         type = types.nullOr types.str;
         default = null;
-        description = "External DATABASE_URL when createLocally is false.";
+        description = "External DATABASE_URL when createLocally is false. Prefer environmentFile for URLs containing credentials.";
       };
     };
 
@@ -125,12 +128,22 @@ in
       publicUrl = mkOption {
         type = types.nullOr types.str;
         default = null;
-        description = "Public backend URL if distinct from frontend.";
+        description = "Public backend URL without a trailing slash, exported as MULTICA_PUBLIC_URL.";
+      };
+      trustedProxies = mkOption {
+        type = types.listOf types.str;
+        default = [ ];
+        description = "CIDRs trusted for backend webhook X-Forwarded-For/X-Real-IP handling, exported as MULTICA_TRUSTED_PROXIES.";
       };
       metricsAddress = mkOption {
         type = types.nullOr types.str;
         default = null;
         description = "Optional METRICS_ADDR listener, for example 127.0.0.1:9090.";
+      };
+      openFirewall = mkOption {
+        type = types.bool;
+        default = false;
+        description = "Open the backend firewall port directly. Dangerous until upstream supports binding the backend to listenAddress.";
       };
     };
 
@@ -181,19 +194,46 @@ in
     openFirewall = mkOption {
       type = types.bool;
       default = false;
-      description = "Open firewall ports for frontend and backend.";
+      description = "Open the frontend firewall port. The backend port is controlled separately by backend.openFirewall.";
     };
   };
 
   config = mkIf cfg.enable {
     assertions = [
       {
+        assertion = cfg.environmentFile == null || lib.hasPrefix "/" cfg.environmentFile;
+        message = "services.multica.environmentFile must be an absolute runtime path.";
+      }
+      {
         assertion = cfg.environmentFile == null || !(lib.hasPrefix builtins.storeDir cfg.environmentFile);
         message = "services.multica.environmentFile must be a runtime path, not a Nix store path.";
       }
       {
-        assertion = cfg.database.createLocally || cfg.database.url != null;
-        message = "services.multica.database.url is required when database.createLocally = false.";
+        assertion = lib.hasPrefix "/" cfg.stateDir;
+        message = "services.multica.stateDir must be absolute.";
+      }
+      {
+        assertion = !lib.hasSuffix "/" cfg.frontend.publicUrl;
+        message = "services.multica.frontend.publicUrl must not have a trailing slash.";
+      }
+      {
+        assertion = cfg.backend.publicUrl == null || !lib.hasSuffix "/" cfg.backend.publicUrl;
+        message = "services.multica.backend.publicUrl must not have a trailing slash.";
+      }
+      {
+        assertion =
+          cfg.database.createLocally
+          || (cfg.database.url != null && cfg.database.url != "")
+          || cfg.environmentFile != null;
+        message = "services.multica.database.url or an environmentFile containing DATABASE_URL is required when database.createLocally = false.";
+      }
+      {
+        assertion = !cfg.database.createLocally || simplePgIdentifier cfg.database.name;
+        message = "services.multica.database.name must use only letters, digits, underscores, or hyphens and must not start with a digit or hyphen.";
+      }
+      {
+        assertion = !cfg.database.createLocally || simplePgIdentifier cfg.database.user;
+        message = "services.multica.database.user must use only letters, digits, underscores, or hyphens and must not start with a digit or hyphen.";
       }
       {
         assertion = !cfg.database.createLocally || cfg.database.user == cfg.user;
@@ -204,6 +244,8 @@ in
         message = "services.multica.storage.localUploadDir must be absolute.";
       }
     ];
+
+    warnings = optional cfg.backend.openFirewall "services.multica.backend.openFirewall exposes the backend listener directly; prefer a reverse proxy or host firewall rules that keep the raw backend port private.";
 
     users.groups.${cfg.group} = { };
     users.users.${cfg.user} = {
@@ -217,10 +259,7 @@ in
       enable = true;
       package = pkgs.postgresql_17;
       extensions = ps: [ ps.pgvector ];
-      ensureDatabases = unique [
-        cfg.database.name
-        cfg.database.user
-      ];
+      ensureDatabases = [ cfg.database.name ];
       ensureUsers = [
         {
           name = cfg.database.user;
@@ -229,10 +268,9 @@ in
       ];
     };
 
-    networking.firewall.allowedTCPPorts = mkIf cfg.openFirewall [
-      cfg.frontend.port
-      cfg.backend.port
-    ];
+    networking.firewall.allowedTCPPorts =
+      optional cfg.openFirewall cfg.frontend.port
+      ++ optional cfg.backend.openFirewall cfg.backend.port;
 
     systemd.tmpfiles.rules = [
       "d ${cfg.stateDir} 0750 ${cfg.user} ${cfg.group} - -"
@@ -263,9 +301,7 @@ in
       requires = optional cfg.database.createLocally "multica-db-setup.service";
       before = [ "multica-backend.service" ];
       wantedBy = [ "multi-user.target" ];
-      environment = {
-        DATABASE_URL = dbUrl;
-      };
+      environment = dbEnvironment;
       serviceConfig = {
         Type = "oneshot";
         User = cfg.user;
@@ -284,15 +320,21 @@ in
       ];
       requires = [ "multica-migrate.service" ];
       wantedBy = [ "multi-user.target" ];
-      environment = {
-        DATABASE_URL = dbUrl;
+      environment = dbEnvironment // {
         PORT = toString cfg.backend.port;
         APP_ENV = "production";
         FRONTEND_ORIGIN = cfg.frontend.publicUrl;
         CORS_ALLOWED_ORIGINS = cfg.frontend.publicUrl;
+        GOOGLE_REDIRECT_URI = "${cfg.frontend.publicUrl}/auth/callback";
         MULTICA_APP_URL = cfg.frontend.publicUrl;
         LOCAL_UPLOAD_DIR = cfg.storage.localUploadDir;
         LOCAL_UPLOAD_BASE_URL = cfg.storage.localUploadBaseUrl;
+      }
+      // optionalAttrs (cfg.backend.publicUrl != null) {
+        MULTICA_PUBLIC_URL = cfg.backend.publicUrl;
+      }
+      // optionalAttrs (cfg.backend.trustedProxies != [ ]) {
+        MULTICA_TRUSTED_PROXIES = concatStringsSep "," cfg.backend.trustedProxies;
       }
       // optionalAttrs (cfg.backend.metricsAddress != null) {
         METRICS_ADDR = cfg.backend.metricsAddress;
@@ -300,7 +342,6 @@ in
       serviceConfig = {
         User = cfg.user;
         Group = cfg.group;
-        StateDirectory = lib.removePrefix "/var/lib/" cfg.stateDir;
         WorkingDirectory = "${serverPackage}/share/multica";
         ExecStartPre = "${pkgs.coreutils}/bin/mkdir -p ${cfg.storage.localUploadDir}";
         ExecStart = "${serverPackage}/bin/multica-server";
