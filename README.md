@@ -2,7 +2,7 @@
 
 Experimental external native Nix/NixOS packaging for [Multica](https://github.com/multica-ai/multica). It builds the Go backend, Next.js web frontend, a NixOS module, and a VM test.
 
-Packaged Multica version: `0.3.39` (`v0.3.39`).
+This flake tracks upstream Multica releases through an automated update workflow. The currently pinned version lives in `flake.nix` and the package derivations.
 
 ## Flake input
 
@@ -57,8 +57,8 @@ Automated updates are handled by `.github/workflows/update.yml`. The workflow ch
 The update script can be run locally too:
 
 ```bash
-./scripts/update.sh --latest
-./scripts/update.sh --version 0.3.38
+bash scripts/update.sh --latest
+bash scripts/update.sh --version <version>
 ```
 
 It updates:
@@ -68,7 +68,6 @@ It updates:
 - upstream source hashes
 - Go `vendorHash`
 - pnpm dependency hash
-- the packaged version line in this README
 
 Manual update checklist:
 
@@ -99,4 +98,4 @@ nix flake check
 
 ## Known limitations
 
-Multica v0.3.34 backend only honors `PORT` and binds to `:${PORT}`; the module keeps `backend.listenAddress` for UX/documentation, but runtime binding is controlled upstream. Keep `services.multica.backend.openFirewall = false` unless you intentionally expose or separately firewall the raw backend port.
+The backend currently only honors `PORT` and binds to `:${PORT}`; the module keeps `backend.listenAddress` for UX/documentation, but runtime binding is controlled upstream. Keep `services.multica.backend.openFirewall = false` unless you intentionally expose or separately firewall the raw backend port.
