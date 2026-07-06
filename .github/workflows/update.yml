@@ -1,0 +1,95 @@
+name: Update Multica
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Specific Multica version, for example 0.3.38 or v0.3.38"
+        required: false
+        type: string
+
+concurrency:
+  group: update-multica
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            accept-flake-config = true
+
+      - name: Check latest Multica version
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+
+          CURRENT_VERSION="$(sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' flake.nix | head -n1)"
+
+          if [ -n "${REQUESTED_VERSION:-}" ]; then
+            LATEST_VERSION="${REQUESTED_VERSION#v}"
+          else
+            LATEST_VERSION="$(gh release view --repo multica-ai/multica --json tagName -q '.tagName' | sed 's/^v//')"
+          fi
+
+          echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
+          echo "new_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
+
+          if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "update_needed=false" >> "$GITHUB_OUTPUT"
+            echo "Already up to date: $CURRENT_VERSION"
+          else
+            echo "update_needed=true" >> "$GITHUB_OUTPUT"
+            echo "Update needed: $CURRENT_VERSION -> $LATEST_VERSION"
+          fi
+
+      - name: Update package metadata and hashes
+        if: steps.check.outputs.update_needed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
+          VERIFY_BUILDS: "1"
+          RUN_VM_TEST: "0"
+        run: |
+          bash scripts/update.sh --version "${{ steps.check.outputs.new_version }}"
+
+      - name: Create pull request
+        if: steps.check.outputs.update_needed == 'true'
+        id: create-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.UPDATE_BOT_TOKEN }}
+          commit-message: "chore: update multica to ${{ steps.check.outputs.new_version }}"
+          title: "chore: update multica to ${{ steps.check.outputs.new_version }}"
+          branch: "update-multica-${{ steps.check.outputs.new_version }}"
+          delete-branch: true
+          body: |
+            Automated Multica update.
+
+            Updates Multica from `${{ steps.check.outputs.current_version }}` to `${{ steps.check.outputs.new_version }}`.
+
+            The update script refreshed version fields and Nix hashes.
+
+      - name: Enable auto-merge
+        if: steps.create-pr.outputs.pull-request-number != ''
+        env:
+          GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
+        run: |
+          if ! gh pr merge "${{ steps.create-pr.outputs.pull-request-number }}" --auto --squash --delete-branch; then
+            echo "::warning::Auto-merge could not be enabled. Enable repository auto-merge and required branch checks, or merge the PR manually."
+          fi
