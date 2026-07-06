@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+umask 077
 
 compose_file="docker-compose.selfhost.yml"
 project="multica"
@@ -22,6 +23,7 @@ done
 [[ -f "$compose_file" ]] || { echo "compose file not found: $compose_file" >&2; exit 1; }
 if [[ -z "$out" ]]; then out="./backups/$(date -u +%Y%m%dT%H%M%SZ)"; fi
 mkdir -p "$out"
+chmod 0700 "$out"
 compose=(docker compose -p "$project" -f "$compose_file")
 postgres_cid="$(${compose[@]} ps -q "$postgres_service")"
 backend_cid="$(${compose[@]} ps -q "$backend_service")"
@@ -48,10 +50,10 @@ Uploads source: $mount_source
 Next steps:
 1. Review env.sanitized.example and install it as /var/lib/multica/multica.env.
 2. Enable native services.multica on non-conflicting test ports first.
-3. Run import-to-native.sh --backup-dir $out --db multica_nix_test.
+3. Run import-to-native.sh --replace-existing-db --backup-dir $out --db multica_nix_test.
 4. Verify login, workspaces, issues, comments, attachments, and daemon connectivity.
 EOF
 
 echo "Export complete: $out"
-echo "Next: ./scripts/import-to-native.sh --backup-dir $out --db multica_nix_test"
+echo "Next: ./scripts/import-to-native.sh --replace-existing-db --backup-dir $out --db multica_nix_test"
 echo "Do not run docker compose down -v or remove Docker volumes."
