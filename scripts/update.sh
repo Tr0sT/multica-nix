@@ -69,20 +69,6 @@ def sub1(path, pattern, repl, flags=re.S):
     p.write_text(new)
 
 
-def maybe_update_readme(version):
-    p = Path("README.md")
-    if not p.exists():
-        return
-    text = p.read_text()
-    new, _ = re.subn(
-        r"Packaged Multica version: `[^`]+` \(`v[^`]+`\)\.",
-        f"Packaged Multica version: `{version}` (`v{version}`).",
-        text,
-        count=1,
-    )
-    p.write_text(new)
-
-
 def replace_src_hash(replacement):
     pattern = r"(src = fetchFromGitHub \{.*?\n\s*hash = )([^;\n]+);"
     for path in ["packages/multica-server.nix", "packages/multica-web.nix"]:
@@ -122,8 +108,6 @@ if mode == "version":
             lambda m: f'{m.group(1)}"{version}"',
             flags=re.M,
         )
-
-    maybe_update_readme(version)
 
 elif mode == "fake-hashes":
     replace_src_hash("lib.fakeHash")
