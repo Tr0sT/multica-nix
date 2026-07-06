@@ -66,7 +66,7 @@ jobs:
           VERIFY_BUILDS: "1"
           RUN_VM_TEST: "0"
         run: |
-          ./scripts/update.sh --version "${{ steps.check.outputs.new_version }}"
+          bash scripts/update.sh --version "${{ steps.check.outputs.new_version }}"
 
       - name: Create pull request
         if: steps.check.outputs.update_needed == 'true'
