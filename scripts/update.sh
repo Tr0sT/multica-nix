@@ -2,8 +2,15 @@
 set -euo pipefail
 
 UPSTREAM_REPO="multica-ai/multica"
-LOG_FILE="$(mktemp)"
-trap 'rm -f "$LOG_FILE"' EXIT
+if [ -z "${LOG_FILE:-}" ]; then
+  LOG_FILE="$(mktemp)"
+  CLEAN_LOG_FILE=1
+else
+  mkdir -p "$(dirname "$LOG_FILE")"
+  : > "$LOG_FILE"
+  CLEAN_LOG_FILE=0
+fi
+trap 'if [ "${CLEAN_LOG_FILE:-0}" = "1" ]; then rm -f "$LOG_FILE"; fi' EXIT
 
 usage() {
   cat <<'EOF'
@@ -13,6 +20,7 @@ Usage:
   scripts/update.sh --latest
 
 Environment:
+  LOG_FILE=path    keep the last hash-discovery build log at path
   VERIFY_BUILDS=0  skip final package build verification
   RUN_VM_TEST=1    also build .#checks.x86_64-linux.multica-vm during verification
 EOF
@@ -145,9 +153,13 @@ expect_hash_mismatch() {
   local description="$2"
 
   echo "Discovering $description hash with nix build .#$attr ..." >&2
+  {
+    echo
+    echo "--- Discovering $description hash with nix build .#$attr ---"
+  } >> "$LOG_FILE"
 
   set +e
-  nix build ".#$attr" --no-link --print-build-logs >"$LOG_FILE" 2>&1
+  nix build ".#$attr" --no-link --print-build-logs >>"$LOG_FILE" 2>&1
   local status=$?
   set -e
 
