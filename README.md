@@ -52,18 +52,33 @@ For a public or cross-machine deployment, keep the raw backend private and put M
 
 ## Updating Multica
 
-1. Check the latest upstream release tag.
-2. Update `version` in `flake.nix`.
-3. Update hashes in `packages/multica-server.nix` and `packages/multica-web.nix` by running builds and replacing Nix's reported hashes.
-4. Run:
+Automated updates are handled by `.github/workflows/update.yml`. The workflow checks the latest `multica-ai/multica` release every six hours and can also be run manually from the Actions tab with an explicit version.
 
-   ```bash
-   nix flake show
-   nix build .#multica-server
-   nix build .#multica-web
-   nix build .#checks.x86_64-linux.multica-vm
-   nix flake check
-   ```
+The update script can be run locally too:
+
+```bash
+./scripts/update.sh --latest
+./scripts/update.sh --version 0.3.38
+```
+
+It updates:
+
+- `version` in `flake.nix`
+- default package versions
+- upstream source hashes
+- Go `vendorHash`
+- pnpm dependency hash
+- the packaged version line in this README
+
+Manual update checklist:
+
+```bash
+nix flake show
+nix build .#multica-server
+nix build .#multica-web
+nix build .#checks.x86_64-linux.multica-vm
+nix flake check
+```
 
 ## Troubleshooting
 
