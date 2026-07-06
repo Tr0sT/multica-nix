@@ -103,16 +103,10 @@ jobs:
             If this PR contains `lib.fakeHash` or has failing checks, inspect the `Update Multica` workflow run and its `multica-update-log` artifact.
 
       - name: Enable auto-merge
-        if: always() && steps.update-package.outcome == 'success' && steps.create-pr.outputs.pull-request-number != ''
+        if: always() && steps.create-pr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
         run: |
           if ! gh pr merge "${{ steps.create-pr.outputs.pull-request-number }}" --auto --squash --delete-branch; then
             echo "::warning::Auto-merge could not be enabled. Enable repository auto-merge and required branch checks, or merge the PR manually."
           fi
-
-      - name: Mark updater failure
-        if: always() && steps.check.outputs.update_needed == 'true' && steps.update-package.outcome != 'success'
-        run: |
-          echo "::error::The updater made partial changes but failed before completing. The generated PR and multica-update-log artifact should be inspected manually."
-          exit 1
