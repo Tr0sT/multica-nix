@@ -213,6 +213,14 @@ in
         message = "services.multica.stateDir must be absolute.";
       }
       {
+        assertion = !lib.hasSuffix "/" cfg.frontend.publicUrl;
+        message = "services.multica.frontend.publicUrl must not have a trailing slash.";
+      }
+      {
+        assertion = cfg.backend.publicUrl == null || !lib.hasSuffix "/" cfg.backend.publicUrl;
+        message = "services.multica.backend.publicUrl must not have a trailing slash.";
+      }
+      {
         assertion =
           cfg.database.createLocally
           || (cfg.database.url != null && cfg.database.url != "")
