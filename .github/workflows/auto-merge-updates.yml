@@ -32,11 +32,12 @@ jobs:
             exit 0
           fi
 
-          pr_json="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,isDraft,baseRefName,headRefName,title)"
+          pr_json="$(gh pr view "$PR_NUMBER" --repo "$REPO" --json state,isDraft,baseRefName,headRefName,headRefOid,title)"
           state="$(jq -r '.state' <<< "$pr_json")"
           is_draft="$(jq -r '.isDraft' <<< "$pr_json")"
           base_ref="$(jq -r '.baseRefName' <<< "$pr_json")"
           head_ref="$(jq -r '.headRefName' <<< "$pr_json")"
+          pr_head_sha="$(jq -r '.headRefOid' <<< "$pr_json")"
           title="$(jq -r '.title' <<< "$pr_json")"
 
           if [ "$state" != "OPEN" ]; then
@@ -70,6 +71,28 @@ jobs:
               ;;
           esac
 
+          if [ "$pr_head_sha" != "$HEAD_SHA" ]; then
+            echo "PR #$PR_NUMBER moved after CI: expected $HEAD_SHA, found $pr_head_sha"
+            exit 1
+          fi
+
+          # GitHub can report a successful workflow_run slightly before the
+          # required check is visible to branch protection. Retry the normal
+          # merge briefly instead of relying only on native auto-merge state.
+          for attempt in 1 2 3 4 5; do
+            if gh pr merge "$PR_NUMBER" \
+              --repo "$REPO" \
+              --squash \
+              --delete-branch \
+              --match-head-commit "$HEAD_SHA"; then
+              exit 0
+            fi
+
+            echo "Merge is still blocked after successful CI (attempt $attempt/5); retrying in 10 seconds."
+            sleep 10
+          done
+
+          echo "Direct merge is still blocked; enabling native auto-merge as a fallback."
           gh pr merge "$PR_NUMBER" \
             --repo "$REPO" \
             --auto \
