@@ -44,7 +44,16 @@ current_version() {
 }
 
 latest_version() {
-  gh release view --repo "$UPSTREAM_REPO" --json tagName -q '.tagName' | sed 's/^v//'
+  local headers=(
+    -H "Accept: application/vnd.github+json"
+    -H "X-GitHub-Api-Version: 2022-11-28"
+  )
+  if [ -n "${GH_TOKEN:-}" ]; then
+    headers+=( -H "Authorization: Bearer ${GH_TOKEN}" )
+  fi
+
+  curl -fsSL "${headers[@]}" "https://api.github.com/repos/${UPSTREAM_REPO}/releases/latest" \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["tag_name"].removeprefix("v"))'
 }
 
 patch_nix_files() {
@@ -91,6 +100,14 @@ def replace_pnpm_hash(replacement):
     )
 
 
+def replace_cli_hash(system, replacement):
+    sub1(
+        "packages/multica-cli.nix",
+        rf"({re.escape(system)} = \{{.*?\n\s*hash = )([^;\n]+);",
+        lambda m: f"{m.group(1)}{replacement};",
+    )
+
+
 if mode == "version":
     version = value.removeprefix("v")
 
@@ -101,7 +118,11 @@ if mode == "version":
         flags=re.M,
     )
 
-    for path in ["packages/multica-server.nix", "packages/multica-web.nix"]:
+    for path in [
+        "packages/multica-cli.nix",
+        "packages/multica-server.nix",
+        "packages/multica-web.nix",
+    ]:
         sub1(
             path,
             r"(version \? )\"[^\"]+\"",
@@ -113,6 +134,8 @@ elif mode == "fake-hashes":
     replace_src_hash("lib.fakeHash")
     replace_vendor_hash("lib.fakeHash")
     replace_pnpm_hash("lib.fakeHash")
+    replace_cli_hash("x86_64-linux", "lib.fakeHash")
+    replace_cli_hash("aarch64-linux", "lib.fakeHash")
 
 elif mode == "src-hash":
     replace_src_hash(f'"{value}"')
@@ -123,9 +146,25 @@ elif mode == "vendor-hash":
 elif mode == "pnpm-hash":
     replace_pnpm_hash(f'"{value}"')
 
+elif mode == "cli-amd64-hash":
+    replace_cli_hash("x86_64-linux", f'"{value}"')
+
+elif mode == "cli-arm64-hash":
+    replace_cli_hash("aarch64-linux", f'"{value}"')
+
 else:
     raise SystemExit(f"unknown patch mode: {mode}")
 PY
+}
+
+prefetch_cli_hash() {
+  local version="$1"
+  local arch="$2"
+  local url="https://github.com/${UPSTREAM_REPO}/releases/download/v${version}/multica-cli-${version}-linux-${arch}.tar.gz"
+
+  echo "Prefetching Multica CLI linux-${arch} release archive..." >&2
+  nix store prefetch-file --json "$url" \
+    | python3 -c 'import json, sys; print(json.load(sys.stdin)["hash"])'
 }
 
 parse_got_hash() {
@@ -170,7 +209,7 @@ verify_builds() {
   fi
 
   echo "Verifying packages..."
-  nix build .#multica-server .#multica-web --no-link --print-build-logs
+  nix build .#multica-cli .#multica-server .#multica-web --no-link --print-build-logs
 
   if [ "${RUN_VM_TEST:-0}" = "1" ]; then
     echo "Verifying NixOS VM test..."
@@ -179,7 +218,7 @@ verify_builds() {
 }
 
 main() {
-  need_tool gh
+  need_tool curl
   need_tool nix
   need_tool python3
 
@@ -247,6 +286,16 @@ main() {
   pnpm_hash="$(expect_hash_mismatch multica-web "pnpm dependencies")"
   echo "pnpm hash: $pnpm_hash"
   patch_nix_files pnpm-hash "$pnpm_hash"
+
+  local cli_amd64_hash
+  cli_amd64_hash="$(prefetch_cli_hash "$target" amd64)"
+  echo "CLI linux-amd64 hash: $cli_amd64_hash"
+  patch_nix_files cli-amd64-hash "$cli_amd64_hash"
+
+  local cli_arm64_hash
+  cli_arm64_hash="$(prefetch_cli_hash "$target" arm64)"
+  echo "CLI linux-arm64 hash: $cli_arm64_hash"
+  patch_nix_files cli-arm64-hash "$cli_arm64_hash"
 
   nix fmt
   verify_builds

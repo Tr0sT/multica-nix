@@ -19,11 +19,12 @@
         system:
         let
           pkgs = pkgsFor system;
+          multica-cli = pkgs.callPackage ./packages/multica-cli.nix { inherit version; };
           multica-server = pkgs.callPackage ./packages/multica-server.nix { inherit version; };
           multica-web = pkgs.callPackage ./packages/multica-web.nix { inherit version; };
         in
         {
-          inherit multica-server multica-web;
+          inherit multica-cli multica-server multica-web;
           default = multica-server;
         }
       );
@@ -36,6 +37,8 @@
         in
         pkgs.testers.runNixOSTest (import ./tests/multica.nix { inherit self; });
 
+      checks.x86_64-linux.multica-cli = self.packages.x86_64-linux.multica-cli;
+
       formatter = forAllSystems (system: (pkgsFor system).nixfmt-rfc-style);
 
       devShells = forAllSystems (
@@ -46,6 +49,7 @@
         {
           default = pkgs.mkShell {
             packages = [
+              pkgs.curl
               pkgs.git
               pkgs.nixfmt-rfc-style
               pkgs.go_1_26

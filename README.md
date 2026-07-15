@@ -1,6 +1,6 @@
 # multica-nix
 
-Experimental external native Nix/NixOS packaging for [Multica](https://github.com/multica-ai/multica). It builds the Go backend, Next.js web frontend, a NixOS module, and a VM test.
+Experimental external native Nix/NixOS packaging for [Multica](https://github.com/multica-ai/multica). It packages the CLI/runtime daemon, Go backend, Next.js web frontend, a NixOS module, and a VM test.
 
 This flake tracks upstream Multica releases through an automated update workflow. The currently pinned version lives in `flake.nix` and the package derivations.
 
@@ -27,6 +27,20 @@ This flake tracks upstream Multica releases through an automated update workflow
 ```
 
 Put secrets and integration credentials in `/var/lib/multica/multica.env`, not in Nix. At minimum set a strong `JWT_SECRET`.
+
+## CLI and runtime daemon only
+
+Machines that only execute agent tasks can install the CLI without enabling the Multica backend or web frontend:
+
+```nix
+{
+  environment.systemPackages = [
+    inputs.multica-nix.packages.${pkgs.stdenv.hostPlatform.system}.multica-cli
+  ];
+}
+```
+
+Run `multica login` once, then manage `multica daemon start --foreground` with a user or system service. Keep CLI self-updates disabled when the binary comes from Nix; update the flake input and rebuild instead.
 
 ## Public URLs and reverse proxies
 
@@ -57,14 +71,15 @@ Automated updates are handled by `.github/workflows/update.yml`. The workflow ch
 The update script can be run locally too:
 
 ```bash
-bash scripts/update.sh --latest
-bash scripts/update.sh --version <version>
+nix develop -c bash scripts/update.sh --latest
+nix develop -c bash scripts/update.sh --version <version>
 ```
 
 It updates:
 
 - `version` in `flake.nix`
 - default package versions
+- CLI release hashes for Linux AMD64 and ARM64
 - upstream source hashes
 - Go `vendorHash`
 - pnpm dependency hash
@@ -73,6 +88,7 @@ Manual update checklist:
 
 ```bash
 nix flake show
+nix build .#multica-cli
 nix build .#multica-server
 nix build .#multica-web
 nix build .#checks.x86_64-linux.multica-vm
