@@ -19,6 +19,9 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
+      - name: Restore Nix cache
+        uses: nix-community/cache-nix-action@v6
+
       - name: Check flake
         run: nix flake check
 
