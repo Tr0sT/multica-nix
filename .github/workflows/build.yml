@@ -16,16 +16,25 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
 
+      - name: Check flake
+        run: nix flake check
+
       - name: Build packages
         run: |
-          nix build .#multica-server
-          nix build .#multica-cli
-          nix build .#multica-web
+          nix build .#multica-server --out-link result-server
+          nix build .#multica-cli --out-link result-cli
+          nix build .#multica-web --out-link result-web
 
-      - name: Upload Nix results
+      - name: Export Nix store paths
+        run: |
+          nix-store --export \
+            $(readlink -f result-server) \
+            $(readlink -f result-cli) \
+            $(readlink -f result-web) \
+            > multica.nar
+
+      - name: Upload Nix artifact
         uses: actions/upload-artifact@v4
         with:
-          name: multica-packages
-          path: |
-            result
-            result-*
+          name: multica-nar
+          path: multica.nar
