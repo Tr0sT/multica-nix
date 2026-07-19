@@ -13,6 +13,30 @@ This flake tracks upstream Multica releases through an automated update workflow
 }
 ```
 
+## Binary cache (Cachix)
+
+GitHub Actions builds the Multica packages and publishes their Nix store paths to the public [`nuclearband`](https://app.cachix.org/cache/nuclearband) Cachix binary cache. Configure it on NixOS machines to download prebuilt packages instead of compiling them locally:
+
+```nix
+{
+  nix.settings.substituters = [
+    "https://nuclearband.cachix.org"
+  ];
+
+  nix.settings.trusted-public-keys = [
+    "nuclearband.cachix.org-1:SXOkxUWakTie6D8xHjpTTibQlgH4M+Z3f+S5n2GlxhE="
+  ];
+}
+```
+
+After rebuilding the system with this configuration, commands such as:
+
+```bash
+sudo nixos-rebuild switch --flake github:Tr0sT/multica-nix
+```
+
+will use cached Multica builds whenever a matching store path is available.
+
 ## Minimal NixOS usage
 
 ```nix
