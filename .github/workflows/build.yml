@@ -1,0 +1,31 @@
+name: Build Multica packages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+
+      - name: Build packages
+        run: |
+          nix build .#multica-server
+          nix build .#multica-cli
+          nix build .#multica-web
+
+      - name: Upload Nix results
+        uses: actions/upload-artifact@v4
+        with:
+          name: multica-packages
+          path: |
+            result
+            result-*
