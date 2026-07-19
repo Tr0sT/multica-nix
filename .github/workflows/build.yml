@@ -5,9 +5,6 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,6 +15,12 @@ jobs:
 
       - name: Install Nix
         uses: cachix/install-nix-action@v31
+
+      - name: Configure Cachix
+        uses: cachix/cachix-action@v15
+        with:
+          name: nuclearband
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Restore Nix cache
         uses: nix-community/cache-nix-action@v6
@@ -31,23 +34,8 @@ jobs:
           nix build .#multica-cli --out-link result-cli
           nix build .#multica-web --out-link result-web
 
-      - name: Export Nix store paths
+      - name: Push packages to Cachix
         run: |
-          nix-store --export \
-            $(readlink -f result-server) \
-            $(readlink -f result-cli) \
-            $(readlink -f result-web) \
-            > multica.nar
-
-      - name: Upload Nix artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: multica-nar
-          path: multica.nar
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: build-${{ github.run_number }}
-          name: Multica build ${{ github.run_number }}
-          files: multica.nar
+          cachix push nuclearband $(readlink -f result-server)
+          cachix push nuclearband $(readlink -f result-cli)
+          cachix push nuclearband $(readlink -f result-web)
