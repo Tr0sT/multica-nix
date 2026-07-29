@@ -50,6 +50,7 @@ stdenv.mkDerivation (finalAttrs: {
     replace("apps/web/app/layout.tsx", 'import { Inter, Geist_Mono, Source_Serif_4 } from "next/font/google";', "");
     replace("apps/web/app/layout.tsx", `const inter = Inter({
       subsets: ["latin"],
+      style: ["normal", "italic"],
       variable: "--font-inter",
     });`, 'const inter = { variable: "" };');
     replace("apps/web/app/layout.tsx", `const geistMono = Geist_Mono({
@@ -70,17 +71,12 @@ stdenv.mkDerivation (finalAttrs: {
         "serif",
       ],
     });`, 'const sourceSerif = { variable: "" };');
-    replace("apps/web/app/(landing)/layout.tsx", 'import { Instrument_Serif, Noto_Serif_SC } from "next/font/google";', "");
+    replace("apps/web/app/(landing)/layout.tsx", 'import { Instrument_Serif } from "next/font/google";', "");
     replace("apps/web/app/(landing)/layout.tsx", `const instrumentSerif = Instrument_Serif({
       subsets: ["latin"],
       weight: "400",
-      variable: "--font-serif",
+      variable: "--font-instrument-serif",
     });`, 'const instrumentSerif = { variable: "" };');
-    replace("apps/web/app/(landing)/layout.tsx", `const notoSerifSC = Noto_Serif_SC({
-      subsets: ["latin"],
-      weight: "400",
-      variable: "--font-serif-zh",
-    });`, 'const notoSerifSC = { variable: "" };');
     JS
   '';
 
