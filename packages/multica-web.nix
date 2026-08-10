@@ -7,7 +7,7 @@
   nodejs_22,
   pnpm_10,
   pnpmConfigHook,
-  version ? "0.4.21",
+  version ? "0.4.22",
   remoteApiUrl ? "http://127.0.0.1:8080",
   nextPublicWsUrl ? "",
   appVersion ? version,
@@ -21,7 +21,7 @@ stdenv.mkDerivation (finalAttrs: {
     owner = "multica-ai";
     repo = "multica";
     rev = "v${finalAttrs.version}";
-    hash = "sha256-DQr5Gjl4VURuEJZdkJxqgbA3eE2OoqRZrtU6Qap6OIU=";
+    hash = "sha256-HUTcOARQ4Im5pnqGgQtCx9bmBdSv8gLFafwivkVM4Ms=";
   };
 
   pnpmDeps = fetchPnpmDeps {
