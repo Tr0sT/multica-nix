@@ -2,18 +2,18 @@
   fetchurl,
   lib,
   stdenvNoCC,
-  version ? "0.4.26",
+  version ? "0.4.30",
 }:
 
 let
   sources = {
     x86_64-linux = {
       arch = "amd64";
-      hash = "sha256-CxfZ+IaOC50VjXDwfV+Bfs1vE44Lods4uDQSydwyHzI=";
+      hash = "sha256-+F0PpgXGtAsmOKg0hV3QSao+uW889Jawnf6SGtOEZpU=";
     };
     aarch64-linux = {
       arch = "arm64";
-      hash = "sha256-VHxDwbbZa+knR0QewuLM7nvz3wP7A6pzITOdQi2Cx+0=";
+      hash = "sha256-Wc1Fm8It2sIvUU1k1aVf2UkPIDVw4urNdrmvCiomlhg=";
     };
   };
   source =
