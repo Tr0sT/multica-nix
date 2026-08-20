@@ -2,7 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
-  version ? "0.4.26",
+  version ? "0.4.31",
 }:
 
 buildGoModule rec {
@@ -13,11 +13,18 @@ buildGoModule rec {
     owner = "multica-ai";
     repo = "multica";
     rev = "v${version}";
-    hash = "sha256-D3v9eBbfbtnNMt7F9wiz9WpV1NK6VsgGF1UnBRgb+5E=";
+    hash = "sha256-S/Oc5AMnlDkGzXcYrf0NaaNjNvkbxJIzPBlfua/ksNc=";
   };
 
   modRoot = "server";
-  vendorHash = "sha256-SL//NLuzLV+faAjD7SR9f9j0AaDHel2haZajLJpsj5s=";
+  vendorHash = "sha256-kc26gQOEPRba8WKpCZLFpjLTNHNoIkGX9/AwENW8sGs=";
+
+  # Upstream can raise the required patch release before nixpkgs catches up.
+  # Patch releases do not change the Go language version, so build with the
+  # available Go 1.26 toolchain instead of letting GOTOOLCHAIN=local reject it.
+  postPatch = ''
+    sed -i -E 's/^go 1\.26\.[0-9]+$/go 1.26/' server/go.mod
+  '';
 
   subPackages = [
     "cmd/server"

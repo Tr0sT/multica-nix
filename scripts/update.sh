@@ -168,12 +168,15 @@ prefetch_cli_hash() {
 }
 
 parse_got_hash() {
-  sed -n 's/.*got:[[:space:]]*\(sha256-[A-Za-z0-9+\/=]*\).*/\1/p' "$LOG_FILE" | tail -n1
+  local log_file="${1:-$LOG_FILE}"
+  sed -n 's/.*got:[[:space:]]*\(sha256-[A-Za-z0-9+\/=]*\).*/\1/p' "$log_file" | tail -n1
 }
 
 expect_hash_mismatch() {
   local attr="$1"
   local description="$2"
+  local stage_log
+  stage_log="$(mktemp)"
 
   echo "Discovering $description hash with nix build .#$attr ..." >&2
   {
@@ -182,17 +185,21 @@ expect_hash_mismatch() {
   } >> "$LOG_FILE"
 
   set +e
-  nix build ".#$attr" --no-link --print-build-logs >>"$LOG_FILE" 2>&1
+  nix build ".#$attr" --no-link --print-build-logs >"$stage_log" 2>&1
   local status=$?
   set -e
 
+  cat "$stage_log" >> "$LOG_FILE"
+
   if [ "$status" -eq 0 ]; then
+    rm -f "$stage_log"
     echo "error: expected a hash mismatch for $description, but the build succeeded" >&2
     exit 1
   fi
 
   local hash
-  hash="$(parse_got_hash)"
+  hash="$(parse_got_hash "$stage_log")"
+  rm -f "$stage_log"
   if [ -z "$hash" ]; then
     echo "error: build failed, but no 'got: sha256-...' hash was found while updating $description" >&2
     cat "$LOG_FILE" >&2
