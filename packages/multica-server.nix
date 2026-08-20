@@ -17,7 +17,7 @@ buildGoModule rec {
   };
 
   modRoot = "server";
-  vendorHash = lib.fakeHash;
+  vendorHash = "sha256-kc26gQOEPRba8WKpCZLFpjLTNHNoIkGX9/AwENW8sGs=";
 
   # Upstream can raise the required patch release before nixpkgs catches up.
   # Patch releases do not change the Go language version, so build with the
