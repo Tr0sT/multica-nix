@@ -2,7 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
-  version ? "0.4.31",
+  version ? "0.4.32",
 }:
 
 buildGoModule rec {
@@ -13,11 +13,11 @@ buildGoModule rec {
     owner = "multica-ai";
     repo = "multica";
     rev = "v${version}";
-    hash = "sha256-S/Oc5AMnlDkGzXcYrf0NaaNjNvkbxJIzPBlfua/ksNc=";
+    hash = "sha256-LrGwi4i+PzY+dEjBON9hZEa7zwle+BqpuoDMyQCsgmo=";
   };
 
   modRoot = "server";
-  vendorHash = "sha256-kc26gQOEPRba8WKpCZLFpjLTNHNoIkGX9/AwENW8sGs=";
+  vendorHash = "sha256-QwVYfMtRL4eSRvQ9TuuVQyRXUHWPQXoAzdd9KX+D8lQ=";
 
   # Upstream can raise the required patch release before nixpkgs catches up.
   # Patch releases do not change the Go language version, so build with the
