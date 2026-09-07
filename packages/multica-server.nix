@@ -2,7 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
-  version ? "0.4.40",
+  version ? "0.4.41",
 }:
 
 buildGoModule rec {
@@ -13,7 +13,7 @@ buildGoModule rec {
     owner = "multica-ai";
     repo = "multica";
     rev = "v${version}";
-    hash = "sha256-BIrCsnlw7FWj42FGIPvNAXi3ypMdxaO6x2UKYzsqQlQ=";
+    hash = "sha256-t5dFrQu0W3dBo1j4nF94iUCSIeSV4/qxc4X/gOl9X6w=";
   };
 
   modRoot = "server";
