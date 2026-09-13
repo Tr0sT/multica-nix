@@ -51,7 +51,7 @@ jobs:
           echo "current_version=$CURRENT_VERSION" >> "$GITHUB_OUTPUT"
           echo "new_version=$LATEST_VERSION" >> "$GITHUB_OUTPUT"
 
-          if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ]; then
+          if [ "$CURRENT_VERSION" = "$LATEST_VERSION" ] && ! grep -q 'lib\.fakeHash' packages/multica-{cli,server,web}.nix; then
             echo "update_needed=false" >> "$GITHUB_OUTPUT"
             echo "Already up to date: $CURRENT_VERSION"
           else
@@ -62,15 +62,17 @@ jobs:
       - name: Update package metadata and hashes
         id: update-package
         if: steps.check.outputs.update_needed == 'true'
+        # Preserve diagnostics and the repair PR, but fail the job explicitly below.
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
           LOG_FILE: ${{ runner.temp }}/multica-update.log
           VERIFY_BUILDS: "0"
           RUN_VM_TEST: "0"
+          TARGET_VERSION: ${{ steps.check.outputs.new_version }}
         run: |
           set +e
-          bash scripts/update.sh --version "${{ steps.check.outputs.new_version }}"
+          bash scripts/update.sh --version "$TARGET_VERSION"
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -98,15 +100,22 @@ jobs:
 
             Updates Multica from `${{ steps.check.outputs.current_version }}` to `${{ steps.check.outputs.new_version }}`.
 
-            The update script refreshed version fields and Nix hashes when possible. `CI / flake-check` verifies the final build before auto-merge.
+            Hash refresh result: `${{ steps.update-package.outcome }}`.
+            Auto-merge is enabled only after a successful hash refresh; `CI / flake-check` must still pass before merging.
 
-            If this PR contains `lib.fakeHash` or has failing checks, inspect the `Update Multica` workflow run and its `multica-update-log` artifact.
+            Failed updates are retained as repair PRs. Inspect the failed `Update Multica` run and its `multica-update-log` artifact before resolving any remaining `lib.fakeHash` placeholders.
 
       - name: Enable auto-merge
-        if: always() && steps.create-pr.outputs.pull-request-number != ''
+        if: steps.update-package.outcome == 'success' && steps.create-pr.outputs.pull-request-number != ''
         env:
           GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
         run: |
           if ! gh pr merge "${{ steps.create-pr.outputs.pull-request-number }}" --auto --squash --delete-branch; then
             echo "::warning::Auto-merge could not be enabled. Enable repository auto-merge and required branch checks, or merge the PR manually."
           fi
+
+      - name: Report updater failure
+        if: always() && steps.update-package.outcome == 'failure'
+        run: |
+          echo "::error::Multica hash refresh failed. See the updater log and repair PR; this update must not be auto-merged."
+          exit 1
