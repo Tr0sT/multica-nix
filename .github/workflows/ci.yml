@@ -17,6 +17,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Updater regression tests
+        run: |
+          bash -n scripts/update.sh
+          python3 -m unittest discover -s tests -p 'test_*.py' -v
+
       - uses: cachix/install-nix-action@v31
         with:
           extra_nix_config: |
