@@ -19,8 +19,11 @@ Usage:
   scripts/update.sh --version v0.3.38
   scripts/update.sh --latest
 
+Incomplete updates (with lib.fakeHash still present) are retried even when the
+version in flake.nix already matches the requested version.
+
 Environment:
-  LOG_FILE=path    keep the last hash-discovery build log at path
+  LOG_FILE=path    keep the hash-discovery build logs at path
   VERIFY_BUILDS=0  skip final package build verification
   RUN_VM_TEST=1    also build .#checks.x86_64-linux.multica-vm during verification
 EOF
@@ -41,6 +44,10 @@ normalise_version() {
 
 current_version() {
   sed -n 's/^[[:space:]]*version = "\([^"]*\)";/\1/p' flake.nix | head -n1
+}
+
+has_fake_hashes() {
+  grep -q 'lib\.fakeHash' packages/multica-{cli,server,web}.nix
 }
 
 latest_version() {
@@ -270,8 +277,11 @@ main() {
   fi
 
   if [ "$current" = "$target" ]; then
-    echo "Already up to date: $current"
-    exit 0
+    if ! has_fake_hashes; then
+      echo "Already up to date: $current"
+      exit 0
+    fi
+    echo "Retrying incomplete update: $current (placeholder hashes remain)"
   fi
 
   echo "Updating Multica: $current -> $target"
