@@ -20,10 +20,11 @@ buildGoModule rec {
   vendorHash = lib.fakeHash;
 
   # Upstream can raise the required patch release before nixpkgs catches up.
-  # Patch releases do not change the Go language version, so build with the
-  # available Go 1.26 toolchain instead of letting GOTOOLCHAIN=local reject it.
+  # Keep the released minimum (1.26.0), not the language version (1.26):
+  # Go orders 1.26 < 1.26.0, and dependencies requiring 1.26.0 otherwise make
+  # `go mod vendor` fail with "updates to go.mod needed".
   postPatch = ''
-    sed -i -E 's/^go 1\.26\.[0-9]+$/go 1.26/' server/go.mod
+    sed -i -E 's/^go 1\.26\.[0-9]+$/go 1.26.0/' server/go.mod
   '';
 
   subPackages = [
