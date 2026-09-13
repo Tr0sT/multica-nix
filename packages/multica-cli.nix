@@ -9,11 +9,11 @@ let
   sources = {
     x86_64-linux = {
       arch = "amd64";
-      hash = lib.fakeHash;
+      hash = "sha256-X+mlqab3PdLG4rpayuLzyiMSBsZ2RZqtrDPb1CjA6Uw=";
     };
     aarch64-linux = {
       arch = "arm64";
-      hash = lib.fakeHash;
+      hash = "sha256-EbQJCz9/HMSMTLqJwipcFzbLR6cPcGnY4Cncl/GftNk=";
     };
   };
   source =
