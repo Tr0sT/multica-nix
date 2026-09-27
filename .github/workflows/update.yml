@@ -66,13 +66,14 @@ jobs:
         continue-on-error: true
         env:
           GH_TOKEN: ${{ secrets.UPDATE_BOT_TOKEN }}
-          LOG_FILE: ${{ runner.temp }}/multica-update.log
+          LOG_FILE: ${{ runner.temp }}/multica-update-hashes.log
           VERIFY_BUILDS: "0"
           RUN_VM_TEST: "0"
           TARGET_VERSION: ${{ steps.check.outputs.new_version }}
         run: |
           set +e
-          bash scripts/update.sh --version "$TARGET_VERSION"
+          set -o pipefail
+          bash scripts/update.sh --version "$TARGET_VERSION" 2>&1 | tee "$RUNNER_TEMP/multica-update.log"
           status=$?
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"
@@ -82,7 +83,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: multica-update-log
-          path: ${{ runner.temp }}/multica-update.log
+          path: |
+            ${{ runner.temp }}/multica-update.log
+            ${{ runner.temp }}/multica-update-hashes.log
           if-no-files-found: ignore
 
       - name: Create pull request
@@ -100,10 +103,10 @@ jobs:
 
             Updates Multica from `${{ steps.check.outputs.current_version }}` to `${{ steps.check.outputs.new_version }}`.
 
-            Hash refresh result: `${{ steps.update-package.outcome }}`.
-            Auto-merge is enabled only after a successful hash refresh; `CI / flake-check` must still pass before merging.
+            Updater result: `${{ steps.update-package.outcome }}`.
+            Auto-merge is enabled only after a successful update; `CI / flake-check` must still pass before merging.
 
-            Failed updates are retained as repair PRs. Inspect the failed `Update Multica` run and its `multica-update-log` artifact before resolving any remaining `lib.fakeHash` placeholders.
+            Failed updates are retained as repair PRs. Inspect the failed `Update Multica` run and its `multica-update-log` artifact, which includes full updater output and separate hash-discovery logs.
 
       - name: Enable auto-merge
         if: steps.update-package.outcome == 'success' && steps.create-pr.outputs.pull-request-number != ''
@@ -117,5 +120,5 @@ jobs:
       - name: Report updater failure
         if: always() && steps.update-package.outcome == 'failure'
         run: |
-          echo "::error::Multica hash refresh failed. See the updater log and repair PR; this update must not be auto-merged."
+          echo "::error::Multica update failed. See the full updater log and repair PR; this update must not be auto-merged."
           exit 1

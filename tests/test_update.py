@@ -15,6 +15,7 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
 HASHES = ["sha256-" + base64.b64encode(bytes([n]) * 32).decode() for n in range(1, 6)]
+FORMAT_FILES = ["flake.nix"] + [f"packages/multica-{name}.nix" for name in ("cli", "server", "web")]
 
 MOCK_NIX = r'''
 import json, os, sys
@@ -45,7 +46,12 @@ if args[:2] == ["store", "prefetch-file"]:
         sys.exit(9)
     print(json.dumps({"hash": hashes[4 if "arm64" in args[-1] else 3]}))
     sys.exit(0)
-assert args == ["fmt"], args
+assert args[0] == "fmt", args
+# Plain nixfmt reads empty stdin and fails when invoked without a file.
+assert len(args) == 2 and Path(args[1]).is_file(), args
+if mode == "format":
+    print("formatter failed", file=sys.stderr)
+    sys.exit(6)
 '''
 
 
@@ -85,8 +91,12 @@ class UpdateTests(unittest.TestCase):
     def run_update(self, version="0.4.43", **env):
         return subprocess.run(
             ["bash", str(ROOT / "scripts/update.sh"), "--version", version],
-            cwd=self.work, env={**self.env, **env}, text=True, capture_output=True, timeout=30,
+            cwd=self.work, env={**self.env, **env}, stdin=subprocess.DEVNULL,
+            text=True, capture_output=True, timeout=30,
         )
+
+    def calls(self):
+        return [json.loads(line) for line in (self.work / "nix-calls.jsonl").read_text().splitlines()]
 
     def contents(self):
         return {str(p.relative_to(self.work)): p.read_text() for p in self.work.rglob("*.nix")}
@@ -104,13 +114,15 @@ class UpdateTests(unittest.TestCase):
         result = self.run_update("v0.4.43")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assert_complete()
+        self.assertEqual([call for call in self.calls() if call[0] == "fmt"],
+                         [["fmt", path] for path in FORMAT_FILES])
 
-    def test_complete_same_version_is_a_noop(self):
+    def test_complete_same_version_skips_hashes_but_finishes_formatting(self):
         before = self.contents()
         result = self.run_update("0.4.42")
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(self.contents(), before)
-        self.assertFalse((self.work / "nix-calls.jsonl").exists())
+        self.assertEqual(self.calls(), [["fmt", path] for path in FORMAT_FILES])
 
     def test_same_version_retries_each_placeholder_location(self):
         for name, field in [("server", "hash"), ("server", "vendorHash"), ("web", "hash"), ("cli", "hash")]:
@@ -150,6 +162,30 @@ class UpdateTests(unittest.TestCase):
         result = self.run_update(VERIFY_BUILDS="1", TEST_FAILURE="verify")
         self.assertEqual(result.returncode, 8, result.stdout + result.stderr)
         self.assertNotIn("Update complete", result.stdout)
+
+    def test_formatter_failure_is_not_success_and_does_not_start_verification(self):
+        result = self.run_update(VERIFY_BUILDS="1", TEST_FAILURE="format")
+        self.assertEqual(result.returncode, 6, result.stdout + result.stderr)
+        self.assertIn("formatter failed", result.stderr)
+        self.assertNotIn("Update complete", result.stdout)
+        self.assertFalse(any(".#multica-cli" in call for call in self.calls()))
+
+    def test_retry_after_formatter_failure_keeps_hashes_and_finishes(self):
+        failed = self.run_update(TEST_FAILURE="format")
+        self.assertEqual(failed.returncode, 6, failed.stdout + failed.stderr)
+        self.assert_complete()
+        before = self.contents()
+        (self.work / "nix-calls.jsonl").unlink()
+        result = self.run_update(VERIFY_BUILDS="1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.contents(), before)
+        self.assertEqual(self.calls()[:-1], [["fmt", path] for path in FORMAT_FILES])
+        self.assertIn(".#multica-cli", self.calls()[-1])
+
+    def test_same_version_does_not_hide_verification_failure(self):
+        result = self.run_update("0.4.42", VERIFY_BUILDS="1", TEST_FAILURE="verify")
+        self.assertEqual(result.returncode, 8, result.stdout + result.stderr)
+        self.assertNotIn("Already up to date", result.stdout)
 
     def test_go_patch_keeps_a_released_minimum(self):
         package = (ROOT / "packages/multica-server.nix").read_text()
