@@ -20,7 +20,8 @@ Usage:
   scripts/update.sh --latest
 
 Incomplete updates (with lib.fakeHash still present) are retried even when the
-version in flake.nix already matches the requested version.
+version in flake.nix already matches the requested version. Same-version runs
+with complete hashes still finish formatting and the requested verification.
 
 Environment:
   LOG_FILE=path    keep the hash-discovery build logs at path
@@ -216,6 +217,17 @@ expect_hash_mismatch() {
   printf '%s\n' "$hash"
 }
 
+format_nix_files() {
+  # The flake formatter is plain nixfmt, not a recursive treefmt wrapper.
+  # Without an explicit file it reads stdin, which is empty in Actions.
+  # Format only the metadata we update, one file per invocation.
+  local file
+  echo "Formatting updated Nix files..."
+  for file in flake.nix packages/multica-{cli,server,web}.nix; do
+    nix fmt "$file"
+  done
+}
+
 verify_builds() {
   if [ "${VERIFY_BUILDS:-1}" = "0" ]; then
     echo "Skipping final build verification because VERIFY_BUILDS=0"
@@ -278,6 +290,9 @@ main() {
 
   if [ "$current" = "$target" ]; then
     if ! has_fake_hashes; then
+      # A previous run may have failed after writing all hashes.
+      format_nix_files
+      verify_builds
       echo "Already up to date: $current"
       exit 0
     fi
@@ -314,7 +329,7 @@ main() {
   echo "CLI linux-arm64 hash: $cli_arm64_hash"
   patch_nix_files cli-arm64-hash "$cli_arm64_hash"
 
-  nix fmt
+  format_nix_files
   verify_builds
 
   echo "Update complete:"
