@@ -2,7 +2,7 @@
   lib,
   buildGoModule,
   fetchFromGitHub,
-  version ? "0.6.1",
+  version ? "0.6.2",
 }:
 
 buildGoModule rec {
@@ -13,11 +13,11 @@ buildGoModule rec {
     owner = "multica-ai";
     repo = "multica";
     rev = "v${version}";
-    hash = "sha256-I8aD9pyeTuuU2EPn2IwKomWmeAjHxdT0HmEwvo4hVSc=";
+    hash = "sha256-MVu93cGe+g1S835042cDwcTqC/5kwIR6myR9DwewDwU=";
   };
 
   modRoot = "server";
-  vendorHash = "sha256-b6elV4j+7R6L29q8tbCI3MAOY8X63ndzlmCMv7jo7mM=";
+  vendorHash = "sha256-KJIrY4kLAQ5CBu/ClcXjLHG0FWvSX1ne06OG+ZkL75E=";
 
   # Upstream can raise the required patch release before nixpkgs catches up.
   # Keep the released minimum (1.26.0), not the language version (1.26):
