@@ -7,7 +7,7 @@
   nodejs_22,
   pnpm_10,
   pnpmConfigHook,
-  version ? "0.7.1",
+  version ? "0.7.2",
   remoteApiUrl ? "http://127.0.0.1:8080",
   nextPublicWsUrl ? "",
   appVersion ? version,
@@ -21,7 +21,7 @@ stdenv.mkDerivation (finalAttrs: {
     owner = "multica-ai";
     repo = "multica";
     rev = "v${finalAttrs.version}";
-    hash = "sha256-Bu4duMk61EUrsHNQDO0mfN6BRGsAIIpTlhRvIIs9z2I=";
+    hash = "sha256-/6CFV0QrPQgNjb1RYC39pgde4z953AzvWb1oQv/vImw=";
   };
 
   pnpmDeps = fetchPnpmDeps {
@@ -29,7 +29,7 @@ stdenv.mkDerivation (finalAttrs: {
     pnpm = pnpm_10;
     fetcherVersion = 4;
     pnpmWorkspaces = [ "@multica/web..." ];
-    hash = "sha256-VJFO9PhjZCZ90s3Ivhv1IIL4cJx58iHosDTuVKRZykw=";
+    hash = "sha256-xmoJSYIbZzHQ+uwvdmVTpwpU6ZRUVCLGPamDySCJPoo=";
   };
 
   nativeBuildInputs = [
