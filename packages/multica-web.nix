@@ -51,6 +51,7 @@ stdenv.mkDerivation (finalAttrs: {
     replace("apps/web/app/layout.tsx", `const inter = Inter({
       subsets: ["latin"],
       style: ["normal", "italic"],
+      axes: ["opsz"],
       variable: "--font-inter",
     });`, 'const inter = { variable: "" };');
     replace("apps/web/app/layout.tsx", `const geistMono = Geist_Mono({
